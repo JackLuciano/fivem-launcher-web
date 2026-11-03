@@ -48,7 +48,7 @@ export interface LivePlayer {
   name: string;
   ping: number;
   license: string;
-  identifiers: string[];
+  identifiers?: string[];
 }
 
 export interface TxEvent {

@@ -140,5 +140,9 @@ export default {
     webLauncherOffline: "The launcher isn't connected right now.",
     webForbidden: "Your account isn't allowed to do that.",
     webUnauthorized: "Your session has ended – sign in again.",
+    webRateLimited: "Too many requests – wait a moment and try again.",
+    webBusy: "The launcher is busy checking other sign-ins – try again in a moment.",
+    webCommandTooLong: "Console commands can be at most {max} characters long.",
+    webRetryLater: "Too many failed sign-ins for this account – try again in {seconds} s.",
   },
 };

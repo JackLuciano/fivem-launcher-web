@@ -18,7 +18,7 @@
   let command = $state("");
   let sending = $state(false);
   let showTime = $state(false);
-  const cache = new Map<number, Segment[]>();
+  const cache = new Map<string, Segment[]>();
   const canWrite = $derived(store.can("console.write"));
 
   const all = $derived(store.logs[id] ?? []);
@@ -50,12 +50,17 @@
     return out.reverse();
   });
 
+  function key(l: LogLine) {
+    return `${l.ts}:${l.seq}`;
+  }
+
   function segments(l: LogLine): Segment[] {
-    let s = cache.get(l.seq);
+    const k = key(l);
+    let s = cache.get(k);
     if (!s) {
       if (cache.size > 9000) cache.clear();
       s = highlight(parseAnsi(fivemToAnsi(l.text)));
-      cache.set(l.seq, s);
+      cache.set(k, s);
     }
     return s;
   }
@@ -82,11 +87,14 @@
     const cmd = command.trim();
     if (!cmd || sending) return;
     sending = true;
-    const ok = await store.act("send_console_command", { server: id, command: cmd, waitMs: 0 });
-    sending = false;
-    if (ok !== undefined) {
-      command = "";
-      jump();
+    try {
+      const ok = await store.act("send_console_command", { server: id, command: cmd, waitMs: 0 });
+      if (ok !== undefined) {
+        command = "";
+        jump();
+      }
+    } finally {
+      sending = false;
     }
   }
 </script>
@@ -109,7 +117,7 @@
     {#if !all.length}
       <div class="placeholder"><Icon name="terminal" size={28} /><p>{status === "stopped" ? t("console.stopped") : t("console.waiting")}</p></div>
     {/if}
-    {#each visible as l (l.seq)}
+    {#each visible as l (key(l))}
       <div class="ln {l.kind}">
         {#if showTime}<span class="ts">{i18n.time(l.ts)}</span>{/if}
         {#if source === "all" && (l.source || "").startsWith("macro:")}<span class="tag">{label(l.source)}</span>{/if}

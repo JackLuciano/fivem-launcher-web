@@ -12,6 +12,29 @@ interface Toast {
 
 const LOG_CAP = 4000;
 const THEME_KEY = "fxl-web-theme";
+const HISTORY_RETRY_MS = 5000;
+
+function mergeLive(current: LogLine[], lines: LogLine[]): LogLine[] {
+  if (!lines.length) return current;
+  if (!current.length) return lines.slice();
+  const tail = current[current.length - 1];
+  const first = lines[0];
+  if (first.seq > tail.seq) return current.concat(lines);
+  const same = current.find((l) => l.seq === first.seq);
+  const reset = same ? same.ts !== first.ts : first.ts >= tail.ts;
+  return reset ? lines.slice() : current.concat(lines.filter((l) => l.seq > tail.seq));
+}
+
+function mergeHistory(history: LogLine[], current: LogLine[]): LogLine[] {
+  if (!history.length) return current;
+  const head = history[0];
+  const tail = history[history.length - 1];
+  const known = new Map(history.map((l) => [l.seq, l.ts]));
+  const sameRun = current.some((l) => known.get(l.seq) === l.ts);
+  const before = sameRun ? current.filter((l) => l.seq < head.seq) : [];
+  const after = current.filter((l) => l.seq > tail.seq && l.ts >= tail.ts);
+  return before.concat(history, after).slice(-LOG_CAP);
+}
 
 class Store {
   ready = $state(false);
@@ -30,6 +53,10 @@ class Store {
   #retry = 1000;
   #subs = new Set<string>();
   #toastId = 1;
+  #connected = false;
+  #loading = new Map<string, number>();
+  #stale = new Map<string, number>();
+  #token = 1;
 
   constructor() {
     try {
@@ -75,11 +102,19 @@ class Store {
     await api.logout().catch(() => {});
     this.#ws?.close();
     this.#ws = null;
+    this.#reset();
+    this.go({ name: "servers" });
+  }
+
+  #reset() {
     this.me = null;
     this.servers = [];
+    this.status = {};
     this.logs = {};
     this.live = {};
-    this.go({ name: "servers" });
+    this.#connected = false;
+    this.#loading.clear();
+    this.#stale.clear();
   }
 
   #applyMe(res: { user: unknown; online: boolean; version: string; project: unknown; servers: unknown[] }) {
@@ -104,6 +139,8 @@ class Store {
     ws.onopen = () => {
       this.#retry = 1000;
       for (const id of this.#subs) ws.send(JSON.stringify({ t: "sub", server: id }));
+      if (this.#connected) this.#refill();
+      this.#connected = true;
     };
     ws.onmessage = (ev) => {
       try {
@@ -113,7 +150,7 @@ class Store {
     ws.onclose = (ev) => {
       this.#ws = null;
       if (ev.code === 4001) {
-        this.me = null;
+        this.#reset();
         return;
       }
       if (!this.me) return;
@@ -124,10 +161,13 @@ class Store {
 
   #onPacket(p: Record<string, unknown>) {
     switch (p.t) {
-      case "agent":
+      case "agent": {
+        const was = this.online;
         this.online = !!p.online;
         if (this.online) this.#loadLocales();
+        if (this.online && !was) this.#resync();
         break;
+      }
       case "locales":
         this.#loadLocales();
         break;
@@ -151,9 +191,7 @@ class Store {
         for (const b of p.batches as { id: string; lines: LogLine[] }[]) {
           if (!this.logs[b.id]) continue;
           next ??= { ...this.logs };
-          const current = next[b.id];
-          const last = current.length ? current[current.length - 1].seq : 0;
-          const merged = current.concat(b.lines.filter((l) => l.seq > last));
+          const merged = mergeLive(next[b.id], b.lines);
           next[b.id] = merged.length > LOG_CAP ? merged.slice(-LOG_CAP) : merged;
         }
         if (next) this.logs = next;
@@ -163,25 +201,60 @@ class Store {
   }
 
   async watch(id: string) {
-    if (!this.#subs.has(id)) {
+    const cached = this.logs[id];
+    const fresh = !this.#subs.has(id);
+    if (fresh) {
       this.#subs.add(id);
       this.#ws?.readyState === 1 && this.#ws.send(JSON.stringify({ t: "sub", server: id }));
     }
-    if (this.logs[id] || !this.can("console.read")) return;
-    this.logs = { ...this.logs, [id]: [] };
-    try {
-      const history = await api.action<LogLine[]>("log_history", { server: id });
-      const live = this.logs[id] ?? [];
-      const firstLive = live.length ? live[0].seq : Infinity;
-      this.logs = { ...this.logs, [id]: history.filter((l) => l.seq < firstLive).concat(live).slice(-LOG_CAP) };
-    } catch (e) {
-      this.toast(this.errorText(e), "error");
-    }
+    if (!this.can("console.read") || this.#loading.has(id)) return;
+    const stale = this.#stale.get(id);
+    if (cached && stale === undefined && !fresh) return;
+    if (stale !== undefined && Date.now() < stale) return;
+    await this.#history(id, stale !== undefined);
   }
 
   unwatch(id: string) {
     this.#subs.delete(id);
+    if (this.#stale.has(id)) this.#stale.set(id, 0);
     this.#ws?.readyState === 1 && this.#ws.send(JSON.stringify({ t: "unsub", server: id }));
+  }
+
+  async #history(id: string, quiet: boolean) {
+    const token = this.#token++;
+    this.#loading.set(id, token);
+    this.#stale.delete(id);
+    if (!this.logs[id]) this.logs = { ...this.logs, [id]: [] };
+    try {
+      const history = await api.action<LogLine[]>("log_history", { server: id });
+      const current = this.logs[id];
+      if (this.#loading.get(id) !== token || !current) return;
+      this.logs = { ...this.logs, [id]: mergeHistory(Array.isArray(history) ? history : [], current) };
+    } catch (e) {
+      if (this.#loading.get(id) !== token) return;
+      this.#stale.set(id, Date.now() + HISTORY_RETRY_MS);
+      if (!quiet) this.toast(this.errorText(e), "error");
+    } finally {
+      if (this.#loading.get(id) === token) this.#loading.delete(id);
+    }
+  }
+
+  #refill() {
+    if (!this.can("console.read")) return;
+    for (const id of this.#subs) this.#history(id, true);
+  }
+
+  #resync() {
+    const ids = [...this.#subs].filter((id) => this.logs[id]);
+    if (!ids.length) return;
+    const next = { ...this.logs };
+    for (const id of ids) {
+      delete next[id];
+      this.#loading.delete(id);
+      this.#stale.delete(id);
+    }
+    this.logs = next;
+    for (const id of ids) this.watch(id);
   }
 
   runtime(id: string): { status: string; tx: string; step: unknown } {

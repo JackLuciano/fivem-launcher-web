@@ -140,5 +140,9 @@ export default {
     webLauncherOffline: "Der Launcher ist gerade nicht verbunden.",
     webForbidden: "Dein Konto darf das nicht.",
     webUnauthorized: "Deine Sitzung ist abgelaufen – melde dich erneut an.",
+    webRateLimited: "Zu viele Anfragen – warte kurz und versuche es erneut.",
+    webBusy: "Der Launcher prüft gerade andere Anmeldungen – versuche es gleich noch einmal.",
+    webCommandTooLong: "Konsolenbefehle dürfen höchstens {max} Zeichen lang sein.",
+    webRetryLater: "Zu viele fehlgeschlagene Anmeldungen für dieses Konto – versuche es in {seconds} s erneut.",
   },
 };

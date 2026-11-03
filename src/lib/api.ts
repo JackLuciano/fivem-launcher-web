@@ -11,6 +11,15 @@ export class ApiError extends Error {
   }
 }
 
+function toMsg(raw: unknown, res: Response): Msg {
+  if (raw && typeof raw === "object" && typeof (raw as Msg).key === "string") {
+    const params = (raw as Msg).params;
+    return { key: (raw as Msg).key, params: params && typeof params === "object" ? params : {} };
+  }
+  const detail = typeof raw === "string" && raw ? raw : res.statusText || String(res.status);
+  return { key: res.status === 429 ? "errors.webRateLimited" : "errors.generic", params: { detail } };
+}
+
 async function call<T>(method: "GET" | "POST", url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
@@ -19,10 +28,7 @@ async function call<T>(method: "GET" | "POST", url: string, body?: unknown): Pro
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = (data as { error?: Msg }).error ?? { key: "errors.generic", params: { detail: res.statusText } };
-    throw new ApiError({ key: err.key, params: err.params ?? {} }, res.status);
-  }
+  if (!res.ok) throw new ApiError(toMsg(data && typeof data === "object" ? (data as { error?: unknown }).error : undefined, res), res.status);
   return data as T;
 }
 

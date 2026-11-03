@@ -140,5 +140,9 @@ export default {
     webLauncherOffline: "A launcher most nincs csatlakozva.",
     webForbidden: "A fiókodnak ehhez nincs joga.",
     webUnauthorized: "A munkamenet lejárt – jelentkezz be újra.",
+    webRateLimited: "Túl sok kérés – várj egy kicsit, és próbáld újra.",
+    webBusy: "A launcher épp más bejelentkezéseket ellenőriz – próbáld újra egy kicsit később.",
+    webCommandTooLong: "A konzolparancs legfeljebb {max} karakter hosszú lehet.",
+    webRetryLater: "Ehhez a fiókhoz túl sok sikertelen bejelentkezés érkezett – próbáld újra {seconds} mp múlva.",
   },
 };

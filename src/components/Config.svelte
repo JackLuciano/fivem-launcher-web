@@ -19,10 +19,10 @@
     try {
       const [scan, row] = await Promise.all([
         api.action<{ files: ConfigFile[] }>("list_config_files", { server: id }),
-        api.action<{ config: { configValues: Record<string, Record<string, string>> } }>("get_server", { server: id }),
+        api.action<{ configValues?: Record<string, Record<string, string>> }>("get_config_values", { server: id }),
       ]);
       files = scan.files;
-      const loaded = row.config.configValues ?? {};
+      const loaded = row?.configValues ?? {};
       values = structuredClone(loaded);
       saved = structuredClone(loaded);
       open = scan.files[0]?.path ?? null;
@@ -52,12 +52,15 @@
     const keys = changed(file);
     if (!keys.length) return;
     saving = true;
-    const patch = Object.fromEntries(keys.map((k) => [k, values[file]?.[k] ?? ""]));
-    const ok = await store.act("set_config_values", { server: id, file, values: patch }, t("config.saved", { file }));
-    saving = false;
-    if (ok !== undefined) {
-      saved[file] = { ...(saved[file] ?? {}), ...patch };
-      for (const [k, v] of Object.entries(patch)) if (!v) delete saved[file][k];
+    try {
+      const patch = Object.fromEntries(keys.map((k) => [k, values[file]?.[k] ?? ""]));
+      const ok = await store.act("set_config_values", { server: id, file, values: patch }, t("config.saved", { file }));
+      if (ok !== undefined) {
+        saved[file] = { ...(saved[file] ?? {}), ...patch };
+        for (const [k, v] of Object.entries(patch)) if (!v) delete saved[file][k];
+      }
+    } finally {
+      saving = false;
     }
   }
 </script>

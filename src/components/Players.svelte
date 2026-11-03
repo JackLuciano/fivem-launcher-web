@@ -22,7 +22,7 @@
   const players = $derived.by(() => {
     const q = query.trim().toLowerCase();
     const list = live?.players ?? [];
-    return q ? list.filter((p) => `${p.id} ${p.name} ${p.identifiers.join(" ")}`.toLowerCase().includes(q)) : list;
+    return q ? list.filter((p) => `${p.id} ${p.name} ${p.license ?? ""} ${(p.identifiers ?? []).join(" ")}`.toLowerCase().includes(q)) : list;
   });
 
   function start(p: LivePlayer, action: Action) {
@@ -33,13 +33,16 @@
   async function submit(p: LivePlayer) {
     if (!open || (open.action === "message" && !text.trim())) return;
     busy = true;
-    const result = await store.act(
-      "player_action",
-      { server: id, action: open.action, playerId: p.id, text: text.trim(), duration: open.action === "ban" ? duration : "" },
-      t(`players.done.${open.action}`, { name: p.name }),
-    );
-    busy = false;
-    if (result !== undefined) open = null;
+    try {
+      const result = await store.act(
+        "player_action",
+        { server: id, action: open.action, playerId: p.id, text: text.trim(), duration: open.action === "ban" ? duration : "" },
+        t(`players.done.${open.action}`, { name: p.name }),
+      );
+      if (result !== undefined) open = null;
+    } finally {
+      busy = false;
+    }
   }
 
   function pingClass(ping: number) {

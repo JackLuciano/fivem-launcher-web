@@ -50,6 +50,7 @@ class I18n {
   }
 
   t(key: string, params?: Record<string, string | number>): string {
+    if (typeof key !== "string") return "";
     const raw =
       lookup(own[this.lang], key) ?? lookup(this.launcher[this.lang], key) ?? lookup(own.en, key) ?? lookup(this.launcher.en, key) ?? key;
     if (!params) return raw;
@@ -72,5 +73,5 @@ export function t(key: string, params?: Record<string, string | number>): string
 }
 
 export function tm(m: Msg): string {
-  return i18n.t(m.key, m.params);
+  return m && typeof m === "object" ? i18n.t(m.key, m.params) : "";
 }
