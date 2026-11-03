@@ -1,0 +1,20 @@
+[Unit]
+Description=FiveM Server Launcher web panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fivem-panel
+WorkingDirectory=/opt/fivem-panel
+ExecStart=/usr/bin/node server/index.ts
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/fivem-panel/data
+
+[Install]
+WantedBy=multi-user.target
