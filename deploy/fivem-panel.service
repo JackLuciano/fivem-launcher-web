@@ -2,19 +2,39 @@
 Description=FiveM Server Launcher web panel
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=fivem-panel
 WorkingDirectory=/opt/fivem-panel
-ExecStart=/usr/bin/node server/index.ts
+EnvironmentFile=-/etc/fivem-panel.env
+StateDirectory=fivem-panel
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/env DATA_DIR=/var/lib/fivem-panel /usr/bin/node server/index.ts
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/fivem-panel/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
 
 [Install]
 WantedBy=multi-user.target

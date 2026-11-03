@@ -4,54 +4,72 @@ Browser access to the [FiveM Server Launcher](../fivemlauncher) for your team. T
 the launcher with two settings: the launcher's address/port and its token. Nothing else is configured or stored here.
 
 ```
-browser ──HTTPS──> reverse proxy ──> panel (this repo, 127.0.0.1:8080) ──ws://pc:47801──> launcher on the server PC
+browser ──HTTPS──> reverse proxy ──> panel (this repo, 127.0.0.1:8080) ──wss:// (TLS)──> launcher on the server PC
 ```
 
 ## What it does
 
 - **Sign-in** with accounts created and managed only in the launcher (*Web panel* page). The panel stores no accounts:
-  it passes the login to the launcher, which checks the password and returns the account's permissions.
-- **Roles + per-user tweaks** (Owner, Admin, Developer, Moderator, Viewer) and a per-user server list. Examples: a
-  viewer can read the console but not type into it; a moderator can kick/ban but not start servers.
+  it passes the login to the launcher, which checks the password and hands back a ticket for that one sign-in.
+- **Roles + per-user tweaks** (Owner, Admin, Developer, Moderator, Viewer) and a per-user server list (*All servers* or
+  an explicit list – an empty list means no servers). Examples: a viewer can read the console but not type into it; a
+  moderator can kick/ban but not start servers.
 - **Servers**: live status, start / stop / restart, pull, branch switch.
 - **Console**: live output split into tabs per source (FXServer, txAdmin, launcher & git, every dev server/macro), and
-  commands for accounts with *Send console commands*.
-- **Players**: online list with ping and identifiers; message, warn, kick, ban (via txAdmin).
+  commands for accounts with *Send console commands*. Known secret config values are masked in console output.
+- **Players**: online list with ping and identifiers (player IPs are never sent); message, warn, kick, ban (via txAdmin).
 - **Health**: uptime, txAdmin health, tick times per thread, resources (restart / stop / ensure).
 - **Event log**: txAdmin's live action log – joins, leaves, deaths, chat, admin actions.
-- **Config**: a server's own `.cfg` / `.env` values, editable for accounts with *Edit server config values*; secrets are
-  masked unless the account has *See secrets unmasked*.
+- **Config**: a server's own `.cfg` / `.env` values for accounts with *View config*, editable with *Edit server config
+  values*; secrets (passwords, keys, tokens, connection strings, credentials inside URLs) are masked unless the account
+  has *See secrets unmasked*.
 - **Audit log**: every sign-in, every action and every refused attempt, with user, server and IP.
 
-Every request is checked twice: here, and again by the launcher, which owns the accounts. Project settings, license keys,
-git credentials, deleting servers and managing users are never reachable from the web.
+Every request is checked twice: here, and again by the launcher, which owns the accounts and only acts for a user who
+signed in through a ticket it issued. Project settings, license keys, git credentials, deleting servers and managing
+users are never reachable from the web.
 
 ## Run it on a VPS
 
 Requires Node.js 22.18+ (TypeScript runs natively, there is no server build step).
 
 ```bash
+useradd --system --no-create-home --shell /usr/sbin/nologin fivem-panel
 git clone <this repo> /opt/fivem-panel && cd /opt/fivem-panel
 npm ci
-npm run build                 # builds the web UI into dist/
-cp .env.example .env
-nano .env                     # LAUNCHER_URL and LAUNCHER_TOKEN from the launcher
-npm start
+npm run build                                               # builds the web UI into dist/
+install -m 600 -o root -g root .env.example /etc/fivem-panel.env
+nano /etc/fivem-panel.env                                   # LAUNCHER_URL and LAUNCHER_TOKEN from the launcher
+cp deploy/fivem-panel.service /etc/systemd/system/
+systemctl enable --now fivem-panel
 ```
 
-In the launcher: **Web panel → Panel access**: turn it on, keep *Other machines* on, save. The page shows the two lines
-for `.env` (the copy button includes the token). Once the panel connects, the status says *Panel connected from …*.
-Create accounts under **Users** in the launcher.
+The unit reads `/etc/fivem-panel.env` as root before dropping to the `fivem-panel` user, keeps the audit log and the
+translation cache in `/var/lib/fivem-panel` (created by systemd, mode 0700) and runs sandboxed. If you ran the panel by
+hand before, delete the test `./.env` (or `chown root:fivem-panel .env && chmod 640 .env`) and move the old data over:
+`mv /opt/fivem-panel/data/* /var/lib/fivem-panel/ && chown -R fivem-panel:fivem-panel /var/lib/fivem-panel`. The repo
+folder must be readable by the `fivem-panel` user.
+
+In the launcher: **Web panel → Panel access**: turn it on, save. The page shows the two lines for the env file (the copy
+button includes the token). Once the panel connects, the status says *Panel connected from …*. Create accounts under
+**Users** in the launcher.
 
 ### Reaching the server PC
 
-The panel must be able to open a TCP connection to the launcher's port (default `47801`):
+The panel must be able to open a TCP connection to the launcher's port (default `47801`). The link is always encrypted
+with TLS, and both sides prove they know the token without ever sending it: the proof is bound to that one TLS session,
+so a machine in the middle can neither read the traffic nor reuse the handshake. Point `LAUNCHER_URL` straight at the
+launcher – an HTTP reverse proxy or a TLS-terminating tunnel in between breaks that binding and the link is refused.
 
-- **VPN (recommended)**: Tailscale or WireGuard on both machines, then `LAUNCHER_URL=ws://<pc-vpn-ip>:47801`. The link is
-  encrypted and the port is never exposed to the internet.
-- **Port forward**: forward the port on the router and allow it in Windows Firewall. `ws://` is unencrypted, so the
-  token and the logins travel in clear text – only use this with a VPN or a TLS tunnel in front.
-- **Same machine / LAN**: `ws://127.0.0.1:47801` or `ws://<lan-ip>:47801`.
+- **VPN (recommended)**: Tailscale or WireGuard on both machines, then `LAUNCHER_URL=wss://<pc-vpn-ip>:47801`. The port is
+  never exposed to the internet. In the launcher, keep *Other machines* on and allow the port only on the VPN interface
+  in Windows Firewall.
+- **Port forward**: forward the port on the router and allow it in Windows Firewall, then use the PC's public address.
+  The token and the logins stay encrypted, but the port is reachable from the whole internet – prefer a VPN.
+- **Same machine**: `wss://127.0.0.1:47801`, with *Other machines* off in the launcher.
+
+Only one panel can be connected at a time. A second panel with the same token takes over the connection, and the first
+one backs off for five minutes and logs a warning instead of fighting for it.
 
 ### HTTPS
 
@@ -63,37 +81,39 @@ panel.example.com {
 }
 ```
 
-Cloudflare Tunnel works too (`cloudflared tunnel --url http://127.0.0.1:8080`). For plain-HTTP testing on a LAN set
-`COOKIE_SECURE=false` and `HOST=0.0.0.0` – never do that on the internet.
+Cloudflare Tunnel works too (`cloudflared tunnel --url http://127.0.0.1:8080`). Set `PUBLIC_ORIGIN` to the panel's
+public address. For plain-HTTP testing on a LAN set `COOKIE_SECURE=false`, `HOST=0.0.0.0` and `TRUST_PROXY=false` –
+never do that on the internet.
 
-### Keep it running
-
-`deploy/fivem-panel.service` is a systemd unit; copy it to `/etc/systemd/system/`, adjust the paths and user, then
-`systemctl enable --now fivem-panel`.
-
-## Settings (`.env`)
+## Settings (env file)
 
 | Name | Default | Meaning |
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | Listen address |
 | `PORT` | `8080` | Listen port |
-| `LAUNCHER_URL` | – | The launcher's address and port, e.g. `ws://100.64.0.2:47801` |
+| `LAUNCHER_URL` | – | The launcher's address and port, e.g. `wss://100.64.0.2:47801` (always TLS) |
 | `LAUNCHER_TOKEN` | – | The token from the launcher's Web panel page |
 | `COOKIE_SECURE` | `true` | Send the session cookie over HTTPS only |
-| `TRUST_PROXY` | `false` | Take the client IP from `X-Forwarded-For` (set `true` behind a proxy) |
-| `DATA_DIR` | `./data` | Translation cache, audit log |
-| `SESSION_HOURS` | `12` | Idle time before a sign-in expires |
+| `TRUST_PROXY` | `false` | `true`: take the client IP from `X-Forwarded-For` added by a proxy on 127.0.0.1 (ignored, with a warning, unless `HOST` is a loopback address); or a comma-separated list of trusted proxy addresses/CIDRs, for a proxy on another machine |
+| `PUBLIC_ORIGIN` | – | The panel's public address (`https://panel.example.com`); other origins are refused. Empty: the address the browser used |
+| `DATA_DIR` | `./data` | Translation cache, audit log (the systemd unit always uses `/var/lib/fivem-panel` and ignores this) |
+| `SESSION_HOURS` | `12` | Idle time before a sign-in expires (1–720); a sign-in never lasts longer than 7 days |
 
 ## Security notes
 
 - Session cookie: random 256-bit id, `HttpOnly`, `SameSite=Strict`, `Secure` (unless disabled). Sessions live in memory,
-  so restarting the panel signs everyone out.
-- Every write request needs the `x-fxl: 1` header (blocks cross-site form posts) and passes a strict CSP.
-- Login: 15 attempts/minute per IP, and 8 failures lock the IP and the username for 10 minutes. Unknown usernames take as
-  long as wrong passwords.
-- The launcher only accepts a connection that presents its token; one panel at a time, a new one replaces the old.
-  While the launcher is unreachable nobody can sign in, and the panel keeps retrying.
-- Disabling or deleting an account in the launcher signs it out of the panel immediately.
+  so restarting the panel signs everyone out. Signing out, or a password change / disabling / deleting the account in
+  the launcher, ends the session and its live connection immediately.
+- Every write request needs the `x-fxl: 1` header and a matching `Origin`; the live socket checks `Origin` too.
+  Everything is served with a strict CSP.
+- Login: 15 attempts/minute per IP; 8 failures lock the IP (and the IP + username pair) for 10 minutes. Repeated
+  failures for one username make further attempts wait (up to 30 s between tries) instead of locking the real owner
+  out, and IPs that signed in as that account recently are exempt. One sign-in per IP and at most 4 overall are checked
+  at once, and the launcher caps attempts per account again on its side. Unknown usernames take as long as wrong
+  passwords.
+- The launcher link: TLS 1.3 with a fresh certificate per start, mutual token proof bound to the TLS session, one panel
+  at a time. While the launcher is unreachable nobody can sign in, and the panel keeps retrying.
+- The audit log rotates at 10 MB (one previous file is kept as `audit.jsonl.1`).
 
 ## Development
 

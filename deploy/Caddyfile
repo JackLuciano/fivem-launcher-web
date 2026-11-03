@@ -1,4 +1,9 @@
 panel.example.com {
 	encode zstd gzip
+	header {
+		-Server
+		?Cross-Origin-Opener-Policy same-origin
+		?Cross-Origin-Resource-Policy same-origin
+	}
 	reverse_proxy 127.0.0.1:8080
 }
