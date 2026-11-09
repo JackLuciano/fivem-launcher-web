@@ -15,6 +15,7 @@ export interface Me {
 export interface ServerBrief {
   id: string;
   name: string;
+  project?: string;
   status: string;
   step: Msg | null;
   txAdmin: string;

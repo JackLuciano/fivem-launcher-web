@@ -62,18 +62,18 @@
       <input class="input search" placeholder={t("players.search")} bind:value={query} />
       {#if !players.length}<p class="hint">{live.players?.length ? t("common.noMatch") : t("players.none")}</p>{/if}
       <div class="list">
-        {#each players as p (p.id)}
+        {#each players as p, i (p.id || `anon-${i}`)}
           <div class="player">
             <span class="pid tnum">#{p.id}</span>
             <div class="who"><strong>{p.name}</strong>{#if p.license}<span class="mono lic">{p.license}</span>{/if}</div>
             <span class="ping tnum {pingClass(p.ping)}">{p.ping} ms</span>
             <div class="acts">
-              {#if manage}
+              {#if manage && p.id}
                 <button class="btn ghost sm icon" title={t("players.actions.message")} onclick={() => start(p, "message")}><Icon name="message" /></button>
                 <button class="btn ghost sm icon" title={t("players.actions.warn")} onclick={() => start(p, "warn")}><Icon name="alert" /></button>
                 <button class="btn ghost sm icon" title={t("players.actions.kick")} onclick={() => start(p, "kick")}><Icon name="logout" /></button>
               {/if}
-              {#if ban}<button class="btn ghost sm icon danger" title={t("players.actions.ban")} onclick={() => start(p, "ban")}><Icon name="ban" /></button>{/if}
+              {#if ban && p.id}<button class="btn ghost sm icon danger" title={t("players.actions.ban")} onclick={() => start(p, "ban")}><Icon name="ban" /></button>{/if}
             </div>
           </div>
           {#if open?.id === p.id}

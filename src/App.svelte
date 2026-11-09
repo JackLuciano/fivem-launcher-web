@@ -18,6 +18,7 @@
 
   const pageKey = $derived(store.page.name === "server" ? `server:${store.page.id}` : store.page.name);
   const running = $derived(store.servers.filter((s) => store.runtime(s.id).status === "running").length);
+  const title = $derived(store.projects.length > 1 ? t("app.name") : store.projects[0] || store.project || t("app.name"));
 </script>
 
 {#if !store.ready}
@@ -30,7 +31,7 @@
       <div class="brand">
         <img src={mark} alt="" />
         <div class="lbl">
-          <strong class="shiny">{store.project || t("app.name")}</strong>
+          <strong class="shiny">{title}</strong>
           <span class="conn" class:on={store.online}><span class="dot"></span>{store.online ? t("app.launcherOnline") : t("app.launcherOffline")}</span>
         </div>
       </div>
@@ -49,7 +50,7 @@
         <div class="quick lbl">
           <div class="eyebrow">{t("nav.servers")}</div>
           {#each store.servers as s (s.id)}
-            <button class="q" class:active={store.page.name === "server" && store.page.id === s.id} onclick={() => store.go({ name: "server", id: s.id })}>
+            <button class="q" class:active={store.page.name === "server" && store.page.id === s.id} title={store.projects.length > 1 ? s.project : undefined} onclick={() => store.go({ name: "server", id: s.id })}>
               <span class="sdot {store.runtime(s.id).status}"></span><span class="qn">{s.name}</span>
             </button>
           {/each}

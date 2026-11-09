@@ -34,6 +34,7 @@
   const rt = $derived(store.runtime(id));
   const live = $derived(store.live[id]);
   const active = $derived(rt.status === "preparing" || rt.status === "running" || rt.status === "stopping");
+  const running = $derived(rt.status === "running");
 
   $effect(() => {
     store.watch(id);
@@ -64,6 +65,7 @@
           <h1>{server.name}</h1>
           <div class="chips">
             <StatusPill status={rt.status} />
+            {#if store.projects.length > 1 && server.project}<span class="chip"><Icon name="layers" size={12} />{server.project}</span>{/if}
             <span class="chip mono"><Icon name="branch" size={12} />{server.branch}</span>
             <span class="chip">{t(`modes.${server.mode}`)}</span>
             <span class="chip mono">:{server.fxsPort}</span>
@@ -73,7 +75,7 @@
         </div>
         <div class="actions">
           {#if store.can("git")}
-            <button class="btn" disabled={active} onclick={() => store.act("git_pull", { server: id }, t("server.pullStarted"))}><Icon name="download" />{t("server.pull")}</button>
+            <button class="btn" disabled={active && !running} onclick={() => store.act("git_pull", { server: id }, t("server.pullStarted"))}><Icon name="download" />{t("server.pull")}</button>
           {/if}
           {#if store.can("servers.control")}
             {#if active}
@@ -106,7 +108,7 @@
           {:else if tab === "events"}
             <Events {id} />
           {:else if tab === "git"}
-            <Git {id} {active} />
+            <Git {id} {active} {running} />
           {:else if tab === "config"}
             <Config {id} />
           {/if}

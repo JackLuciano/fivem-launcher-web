@@ -99,7 +99,8 @@ export default {
     shared: "verlinkt",
     sharedHint: "Mit einem gemeinsamen Ordner verlinkt; der Branch wird dort gewechselt, nicht pro Server.",
     dirtyWarn: "{n} lokale Änderung(en) hier – Git verweigert den Wechsel bei Konflikten.",
-    stopFirst: "Stoppe den Server, um zu pullen oder den Branch zu wechseln.",
+    stopFirst: "Stoppe den Server, um den Branch zu wechseln.",
+    pullLive: "Der Server läuft beim Pullen weiter: geänderte Builds (wie die UI) werden daneben neu gebaut, Hot Reload oder ein Ressourcen-Neustart wendet die Änderungen an. Stoppe den Server, um den Branch zu wechseln.",
   },
   config: {
     title: "Konfigwerte",

@@ -99,7 +99,8 @@ export default {
     shared: "linked",
     sharedHint: "Linked to a shared folder; its branch is changed there, not per server.",
     dirtyWarn: "{n} local change(s) here – git refuses the switch if they conflict.",
-    stopFirst: "Stop the server to pull or switch branches.",
+    stopFirst: "Stop the server to switch branches.",
+    pullLive: "Pulling keeps the server running: changed builds (such as the UI) are rebuilt next to it, and hot reload or a resource restart applies the changes. Stop the server to switch branches.",
   },
   config: {
     title: "Config values",

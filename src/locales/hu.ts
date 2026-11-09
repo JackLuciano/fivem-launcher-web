@@ -99,7 +99,8 @@ export default {
     shared: "linkelt",
     sharedHint: "Közös mappára van linkelve; a branchét ott kell váltani, nem szerverenként.",
     dirtyWarn: "{n} helyi módosítás van itt – ütközés esetén a git megtagadja a váltást.",
-    stopFirst: "Pullhoz vagy branch váltáshoz állítsd le a szervert.",
+    stopFirst: "Branchváltáshoz állítsd le a szervert.",
+    pullLive: "A szerver pull közben is fut tovább: a megváltozott buildek (pl. a UI) mellette újraépülnek, a változásokat pedig a hot reload vagy a resource újraindítása érvényesíti. Branchváltáshoz állítsd le a szervert.",
   },
   config: {
     title: "Konfig értékek",

@@ -76,6 +76,10 @@ class Store {
     return this.servers.find((s) => s.id === id);
   }
 
+  get projects(): string[] {
+    return [...new Set(this.servers.map((s) => s.project ?? "").filter(Boolean))];
+  }
+
   async boot() {
     try {
       const res = await api.me();

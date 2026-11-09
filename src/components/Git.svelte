@@ -7,7 +7,7 @@
   import BranchPicker from "./BranchPicker.svelte";
   import Icon from "./Icon.svelte";
 
-  let { id, active }: { id: string; active: boolean } = $props();
+  let { id, active, running }: { id: string; active: boolean; running: boolean } = $props();
 
   let repos = $state<RepoStatus[] | null>(null);
   let loading = $state(false);
@@ -109,8 +109,8 @@
     {/if}
     {#if canGit}
       <div class="row">
-        <button class="btn" disabled={active} onclick={() => store.act("git_pull", { server: id }, t("server.pullStarted"))}><Icon name="download" />{t("server.pull")}</button>
-        {#if active}<span class="hint">{t("git.stopFirst")}</span>{/if}
+        <button class="btn" disabled={active && !running} onclick={() => store.act("git_pull", { server: id }, t("server.pullStarted"))}><Icon name="download" />{t("server.pull")}</button>
+        {#if running}<span class="hint">{t("git.pullLive")}</span>{/if}
       </div>
     {/if}
   </div>

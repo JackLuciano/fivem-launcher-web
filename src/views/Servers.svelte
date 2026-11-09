@@ -37,6 +37,7 @@
             </div>
             {#if rt.step}<p class="step">{tm(rt.step as Msg)}</p>{/if}
             <div class="chips">
+              {#if store.projects.length > 1 && s.project}<span class="chip"><Icon name="layers" size={12} />{s.project}</span>{/if}
               <span class="chip mono"><Icon name="branch" size={12} />{s.branch}</span>
               <span class="chip">{t(`modes.${s.mode}`)}</span>
               <span class="chip mono">:{s.fxsPort}</span>
