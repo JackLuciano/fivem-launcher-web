@@ -54,6 +54,46 @@ In the launcher: **Web panel → Panel access**: turn it on, save. The page show
 button includes the token). Once the panel connects, the status says *Panel connected from …*. Create accounts under
 **Users** in the launcher.
 
+## Run it with Docker
+
+For a VPS whose reverse proxy already runs in Docker (e.g. a Caddy container on a shared network). The panel joins
+that network and publishes no ports; only the proxy reaches it.
+
+```bash
+git clone https://github.com/JackLuciano/fivem-launcher-web /home/admin/containers/fivem-panel
+cd /home/admin/containers/fivem-panel
+cp deploy/docker.env.example .env && chmod 600 .env
+nano .env
+docker compose up -d --build
+```
+
+In `.env`:
+
+| Name | Meaning |
+| --- | --- |
+| `LAUNCHER_URL`, `LAUNCHER_TOKEN` | From the launcher's *Web panel → Panel access* (see below) |
+| `PUBLIC_ORIGIN` | The panel's public address, e.g. `https://panel.example.com` |
+| `TRUST_PROXY` | The proxy network's subnet, plus Cloudflare's ranges when Cloudflare proxies the site; otherwise every visitor shows up with the proxy's IP in the audit log and the login lockout |
+| `PANEL_NETWORK` | The existing Docker network of the reverse proxy (default `proxy`) |
+
+`HOST`, `PORT` and `DATA_DIR` are fixed by `compose.yml` (`0.0.0.0:8080`, audit log in the `panel-data` volume). To
+print `TRUST_PROXY` for a Caddy container whose Cloudflare ranges are in `cf_trust.caddy`:
+
+```bash
+echo "$(docker network inspect proxy -f '{{(index .IPAM.Config 0).Subnet}}'),$(grep -oE '[0-9a-f:.]+/[0-9]+' ../caddy/cf_trust.caddy | paste -sd, -)"
+```
+
+Then add the site to the proxy and reload it, for Caddy:
+
+```
+panel.example.com {
+    reverse_proxy fivem-panel:8080
+}
+```
+
+Update with `git pull && docker compose up -d --build` (everyone is signed out, sessions live in memory).
+`docker compose logs -f` shows whether the panel reached the launcher.
+
 ### Reaching the server PC
 
 The panel must be able to open a TCP connection to the launcher's port (default `47801`). The link is always encrypted
